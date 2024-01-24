@@ -43,7 +43,7 @@ android {
         buildConfig = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.4.6"
+        kotlinCompilerExtensionVersion = "1.5.3"
     }
     packaging {
         resources {
@@ -53,14 +53,12 @@ android {
 }
 
 dependencies {
-    val tvCompose = "1.0.0-SNAPSHOT"
-    val composeUi = "1.6.0-SNAPSHOT"
-    val googleMaterial = "1.9.0"
-    val activityCompose = "1.7.2"
-    val lifecycleRuntime = "2.6.1"
-    val navigation = "2.6.0"
-    val hilt = "2.46.1"
-    val hiltNavigation = "1.0.0"
+    val tvCompose = "1.0.0-alpha10"
+    val composeUi = "1.6.0-alpha07"
+    val googleMaterial = "1.11.0"
+    val activityCompose = "1.8.2"
+    val lifecycleRuntime = "2.7.0"
+    val navigation = "2.7.6"
 
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleRuntime")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:$lifecycleRuntime")
