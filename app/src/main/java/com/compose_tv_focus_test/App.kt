@@ -1,38 +1,45 @@
 package com.compose_tv_focus_test
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.tv.foundation.PivotOffsets
 import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.foundation.lazy.list.TvLazyRow
+import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.Button
 import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import com.compose_tv_focus_test.ModifierUtils.createInitialFocusRestorerModifiers
-import com.compose_tv_focus_test.ModifierUtils.ifElse
+import com.compose_tv_focus_test.util.LocalFocusTransferredOnLaunchProvider
+import com.compose_tv_focus_test.util.LocalLastFocusedItemPerDestinationProvider
+import com.compose_tv_focus_test.util.LocalNavHostControllerProvider
+import com.compose_tv_focus_test.util.createInitialFocusRestorerModifiers
+import com.compose_tv_focus_test.util.focusOnMount
+import com.compose_tv_focus_test.util.ifElse
+import com.compose_tv_focus_test.util.shouldPaginate
+import com.compose_tv_focus_test.util.useLocalLastFocusedItemPerDestination
+import com.compose_tv_focus_test.util.useLocalNavHostController
 
 data class FocusedItem(
     val row: Int,
@@ -42,63 +49,91 @@ data class FocusedItem(
 @Composable
 fun App() {
     val navController = rememberNavController()
-    val lastFocusedItem = remember { mutableStateOf(FocusedItem(0, 0)) }
 
-    // To avoid requesting focus on the item more than once
-    val itemAlreadyFocused = remember { mutableStateOf(false) }
-
-    NavHost(navController = navController, startDestination = "home") {
-        composable("home") {
-            LaunchedEffect(Unit) {
-                // reset the value when home is launched
-                itemAlreadyFocused.value = false
-            }
-            HomePage(
-                navController = navController,
-                lastFocusedItem = lastFocusedItem,
-                itemAlreadyFocused = itemAlreadyFocused,
-            )
-        }
-        composable("movie") {
-            BackHandler {
-                navController.popBackStack()
-            }
-            Button(onClick = { navController.popBackStack() }) {
-                Text("Home")
+    LocalNavHostControllerProvider(navController) {
+        LocalLastFocusedItemPerDestinationProvider {
+            NavHost(navController = navController, startDestination = "home") {
+                composable("home") {
+                    LocalFocusTransferredOnLaunchProvider {
+                        HomePage()
+                    }
+                }
+                composable("movie") {
+                    LocalFocusTransferredOnLaunchProvider {
+                        Button(onClick = { navController.popBackStack() }) {
+                            Text("Home")
+                        }
+                    }
+                }
             }
         }
     }
 }
 
+const val KEY_FORMAT = "row=%d, column=%d"
+const val MAX_ITEMS = 15
+
 @Composable
-fun HomePage(
-    navController: NavController,
-    lastFocusedItem: MutableState<FocusedItem>,
-    itemAlreadyFocused: MutableState<Boolean>
-) {
+fun HomePage() {
+    val lastItemFocused = useLocalLastFocusedItemPerDestination()
+
+    val rowListState = rememberTvLazyListState()
+
+    var rowItems by remember { mutableIntStateOf(MAX_ITEMS) }
+
+    LaunchedEffect(Unit) {
+        val defaultValue = String.format(KEY_FORMAT, 0, 0)
+        lastItemFocused.getOrPut("home") { defaultValue }
+    }
+
+
+    val shouldStartPaginate by remember {
+        derivedStateOf {
+            rowListState.shouldPaginate()
+        }
+    }
+
+    LaunchedEffect(shouldStartPaginate) {
+        if(shouldStartPaginate) {
+            rowItems += MAX_ITEMS
+        }
+    }
+
     TvLazyColumn(
         Modifier.fillMaxSize(),
+        state = rowListState
     ) {
-        items(15) { row ->
-            MyRow(
-                row = row,
-                navController = navController,
-                lastFocusedItem = lastFocusedItem,
-                itemAlreadyFocused = itemAlreadyFocused,
-            )
+        items(rowItems) { i ->
+            val row = i % MAX_ITEMS
+
+            Row(row)
         }
     }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun MyRow(
-    row: Int,
-    navController: NavController,
-    lastFocusedItem: MutableState<FocusedItem>,
-    itemAlreadyFocused: MutableState<Boolean>
-) {
+private fun Row(row: Int) {
+    val navController = useLocalNavHostController()
+
     val focusRestorerModifiers = createInitialFocusRestorerModifiers()
+
+    val columnListState = rememberTvLazyListState()
+    val firstInitialIndex = remember { columnListState.firstVisibleItemIndex }
+    var columnItems by remember { mutableIntStateOf(MAX_ITEMS) }
+
+    val shouldStartPaginate by remember {
+        derivedStateOf {
+            columnListState.shouldPaginate()
+        }
+    }
+
+    LaunchedEffect(shouldStartPaginate) {
+        if(shouldStartPaginate) {
+            columnItems += MAX_ITEMS
+        }
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -109,39 +144,24 @@ fun MyRow(
 
         TvLazyRow(
             horizontalArrangement = Arrangement.spacedBy(20.dp),
+            state = columnListState,
             modifier = focusRestorerModifiers.parentModifier
-                .padding(bottom = 10.dp)
+                .padding(bottom = 10.dp),
+            pivotOffsets = PivotOffsets(0.003F),
+            contentPadding = PaddingValues(start = 3.dp)
         ) {
-            items(15) { column ->
-                val focusRequester = remember { FocusRequester() }
+            items(columnItems) { i ->
+                val column = i % MAX_ITEMS
+                val key = String.format(KEY_FORMAT, row, column)
 
                 Card(
                     modifier = Modifier
                         .size(150.dp)
-                        .background(Color.Cyan)
-                        .focusRequester(focusRequester)
                         .ifElse(
-                            condition = column == 0,
+                            condition = column == firstInitialIndex,
                             ifTrueModifier = focusRestorerModifiers.childModifier
                         )
-                        .onPlaced {
-                            val shouldFocusThisItem = lastFocusedItem.value.row == row
-                                    && lastFocusedItem.value.column == column
-                                    && !itemAlreadyFocused.value
-
-                            if (shouldFocusThisItem) {
-                                focusRequester.requestFocus()
-                            }
-                        }
-                        .onFocusChanged {
-                            if (it.isFocused) {
-                                lastFocusedItem.value = FocusedItem(
-                                    row = row,
-                                    column = column
-                                )
-                                itemAlreadyFocused.value = true
-                            }
-                        }
+                        .focusOnMount(key)
                         .focusProperties {
                             if (row == 0) {
                                 up = FocusRequester.Cancel
@@ -149,8 +169,12 @@ fun MyRow(
                                 down = FocusRequester.Cancel
                             }
                         },
-                    onClick = { navController.navigate("movie") }
-                ) {}
+                    scale = CardDefaults.scale(focusedScale = 1F),
+                    onClick = { navController.navigate("movie") },
+                    colors = CardDefaults.colors(containerColor = Color.Cyan)
+                ) {
+                    Text("Column = $column")
+                }
             }
         }
     }
