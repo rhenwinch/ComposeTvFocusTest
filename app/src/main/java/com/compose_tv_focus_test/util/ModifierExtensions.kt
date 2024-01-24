@@ -47,19 +47,15 @@ fun createInitialFocusRestorerModifiers(): FocusRequesterModifiers {
         .focusRequester(focusRequester)
         .focusProperties {
             exit = {
-                try {
-                    focusRequester.saveFocusedChild()
-                } catch (e: Exception) {
-                    Log.e("FOCUS_ERROR", e.stackTraceToString())
-                }
+                focusRequester.saveFocusedChild()
                 FocusRequester.Default
             }
             enter = {
                 try {
                     if (focusRequester.restoreFocusedChild()) FocusRequester.Cancel
-                    else childFocusRequester
+                    else FocusRequester.Default
                 } catch (e: Exception) {
-                    Log.e("FOCUS_ERROR", e.stackTraceToString())
+                    Log.e("RESTORE_FOCUS_ERROR", e.stackTraceToString())
                     FocusRequester.Default
                 }
             }
